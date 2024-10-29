@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - iron
-  schedule:
-    # Run every day to detect flakiness and broken dependencies
-    - cron: '03 1 * * *'
 
 
 jobs:

@@ -11,9 +11,6 @@ on:
   push:
     branches:
       - iron
-  schedule:
-    # Run every morning to detect flakiness and broken dependencies
-    - cron: '33 1 * * *'
 
 jobs:
   semi_binary:
