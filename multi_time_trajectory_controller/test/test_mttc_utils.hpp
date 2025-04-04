@@ -748,11 +748,9 @@ public:
       {
         for (size_t i = 0; i < 3; i++)
         {
-          double val;
-          EXPECT_TRUE(
-            pos_state_interfaces_[i].get_value(val) &&
-            is_same_sign_or_zero(position.at(i) - val, axis_vel_[i]))
-            << "test position point " << position.at(i) << ", position state is " << val
+          auto val = pos_state_interfaces_[i].get_optional();
+          EXPECT_TRUE(val && is_same_sign_or_zero(position.at(i) - *val, axis_vel_[i]))
+            << "test position point " << position.at(i) << ", position state is " << *val
             << ", velocity command is " << axis_vel_[i];
         }
       }
@@ -760,11 +758,9 @@ public:
       {
         for (size_t i = 0; i < 3; i++)
         {
-          double val;
-          EXPECT_TRUE(
-            pos_state_interfaces_[i].get_value(val) &&
-            is_same_sign_or_zero(position.at(i) - val, axis_eff_[i]))
-            << "test position point " << position.at(i) << ", position state is " << val
+          auto val = pos_state_interfaces_[i].get_optional();
+          EXPECT_TRUE(val && is_same_sign_or_zero(position.at(i) - *val, axis_eff_[i]))
+            << "test position point " << position.at(i) << ", position state is " << *val
             << ", effort command is " << axis_eff_[i];
         }
       }

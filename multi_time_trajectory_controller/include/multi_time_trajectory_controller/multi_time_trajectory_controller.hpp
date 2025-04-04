@@ -305,7 +305,9 @@ protected:
   {
     for (size_t index = 0; index < dof_; ++index)
     {
-      trajectory_point_interface[index].position = axis_interface[index].get().get_value();
+      auto pos = axis_interface[index].get().get_optional();
+      if (!pos) continue;
+      trajectory_point_interface[index].position = *pos;
     }
   };
   template <typename T>
@@ -315,7 +317,9 @@ protected:
   {
     for (size_t index = 0; index < dof_; ++index)
     {
-      trajectory_point_interface[index].velocity = axis_interface[index].get().get_value();
+      auto vel = axis_interface[index].get().get_optional();
+      if (!vel) continue;
+      trajectory_point_interface[index].velocity = *vel;
     }
   };
   template <typename T>
@@ -325,7 +329,9 @@ protected:
   {
     for (size_t index = 0; index < dof_; ++index)
     {
-      trajectory_point_interface[index].acceleration = axis_interface[index].get().get_value();
+      auto acc = axis_interface[index].get().get_optional();
+      if (!acc) continue;
+      trajectory_point_interface[index].acceleration = *acc;
     }
   };
 
