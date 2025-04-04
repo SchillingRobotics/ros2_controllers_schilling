@@ -217,8 +217,8 @@ void wraparound_joint(
 
 void Trajectory::update(
   std::shared_ptr<control_msgs::msg::MultiAxisTrajectory> multi_axis_trajectory,
-  const std::vector<joint_limits::JointLimits> & joint_limits, const rclcpp::Duration & period,
-  rclcpp::Time const & time)
+  const std::vector<joint_limits::JointLimits> & /*joint_limits*/,
+  const rclcpp::Duration & /*period*/, rclcpp::Time const & time)
 {
   // start by setting the start time of the trajectory if we're supposed to start it right away
   if (rclcpp::Time(multi_axis_trajectory->header.stamp).seconds() == 0.0)
@@ -547,8 +547,8 @@ bool Trajectory::interpolate_between_points(
   const rclcpp::Time & time_a, const control_msgs::msg::AxisTrajectoryPoint & state_a,
   const rclcpp::Time & time_b, const control_msgs::msg::AxisTrajectoryPoint & state_b,
   const rclcpp::Time & sample_time, const bool skip_splines,
-  control_msgs::msg::AxisTrajectoryPoint & output, const rclcpp::Duration & period,
-  control_msgs::msg::AxisTrajectoryPoint & splines_state, std::size_t axis_index)
+  control_msgs::msg::AxisTrajectoryPoint & output, const rclcpp::Duration & /*period*/,
+  control_msgs::msg::AxisTrajectoryPoint & splines_state, std::size_t /*axis_index*/)
 {
   //   RCLCPP_WARN(rclcpp::get_logger("trajectory"), "New iteration");
 
