@@ -661,8 +661,12 @@ bool MultiTimeTrajectoryController::read_state_from_command_interfaces(
   auto interface_has_values = [](const auto & joint_interface)
   {
     return std::find_if(
-             joint_interface.begin(), joint_interface.end(), [](const auto & interface)
-             { return std::isnan(interface.get().get_value()); }) == joint_interface.end();
+             joint_interface.begin(), joint_interface.end(),
+             [](const auto & interface)
+             {
+               auto val = interface.get().get_optional();
+               return val && std::isnan(*val);
+             }) == joint_interface.end();
   };
 
   // Assign values from the command interfaces as state
@@ -1293,8 +1297,8 @@ controller_interface::CallbackReturn MultiTimeTrajectoryController::on_deactivat
   {
     if (has_position_command_interface_)
     {
-      if (!axis_command_interface_[0][index].get().set_value(
-            axis_command_interface_[0][index].get().get_value()))
+      auto pos_cmd_val = axis_command_interface_[0][index].get().get_optional();
+      if (pos_cmd_val && !axis_command_interface_[0][index].get().set_value(*pos_cmd_val))
       {
         RCLCPP_WARN_STREAM(
           get_node()->get_logger(), "Failed to set position command interface to current value for "
