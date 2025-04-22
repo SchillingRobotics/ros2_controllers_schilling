@@ -92,6 +92,18 @@ controller_interface::CallbackReturn MultiTimeTrajectoryController::on_init()
     }
     else
     {
+      for (size_t i = 0; i < params_.axes_is_angular.size(); ++i)
+      {
+        auto urdf_axis = model.getJoint(params_.axes[i]);
+        if (urdf_axis && urdf_axis->type == urdf::Joint::CONTINUOUS)
+        {
+          RCLCPP_WARN(
+            get_node()->get_logger(), "axis '%s' is of type continuous, use angle_wraparound.",
+            params_.axes[i].c_str());
+          axis_angle_wraparound_[i] = true;
+        }
+        // do nothing if joint is not found in the URDF
+      }
       RCLCPP_DEBUG(get_node()->get_logger(), "Successfully parsed URDF file");
     }
   }
@@ -156,11 +168,6 @@ MultiTimeTrajectoryController::state_interface_configuration() const
 controller_interface::return_type MultiTimeTrajectoryController::update(
   const rclcpp::Time & time, const rclcpp::Duration & period)
 {
-  if (get_lifecycle_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE)
-  {
-    return controller_interface::return_type::OK;
-  }
-
   // bail if haven't initialized current state and still can't
   if (!current_state_initialized_ && !initialize_current_state())
   {
@@ -799,12 +806,6 @@ controller_interface::CallbackReturn MultiTimeTrajectoryController::on_configure
   const rclcpp_lifecycle::State &)
 {
   const auto logger = get_node()->get_logger();
-
-  if (!param_listener_)
-  {
-    RCLCPP_ERROR(get_node()->get_logger(), "Could not get param listener during configure");
-    return controller_interface::CallbackReturn::ERROR;
-  }
 
   // update the dynamic map parameters
   param_listener_->refresh_dynamic_parameters();

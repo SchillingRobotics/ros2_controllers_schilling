@@ -21,6 +21,7 @@
 
 #include <chrono>
 #include <memory>
+#include <ros2_control_test_assets/ros2_control_test_assets/descriptions.hpp>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -34,6 +35,7 @@
 #include "control_msgs/msg/multi_axis_trajectory.hpp"
 #include "control_msgs/msg/multi_time_trajectory_controller_state.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
 #include "multi_time_trajectory_controller/multi_time_trajectory_controller.hpp"
 
 namespace
@@ -219,16 +221,33 @@ public:
     create_reset_dofs_service_client();
   }
 
-  virtual void TearDown()
+  void DeactivateTrajectoryController()
   {
+    if (traj_controller_)
+    {
+      if (
+        traj_controller_->get_lifecycle_state().id() ==
+        lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE)
+      {
+        EXPECT_EQ(
+          traj_controller_->get_node()->deactivate().id(),
+          lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE);
+      }
+    }
+  }
+
+  void TearDown() override
+  {
+    DeactivateTrajectoryController();
     shutdown_ = true;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    traj_controller_.reset();
     traj_gen_sync_thread_.join();
   }
 
   void SetUpTrajectoryController(
     rclcpp::Executor & executor, const std::vector<rclcpp::Parameter> & parameters = {},
-    const std::string & urdf = "")
+    const std::string & urdf = ros2_control_test_assets::minimal_robot_urdf)
   {
     auto has_nonzero_vel_param =
       std::find_if(
@@ -269,7 +288,8 @@ public:
   }
 
   controller_interface::return_type SetUpTrajectoryControllerLocal(
-    const std::vector<rclcpp::Parameter> & parameters = {}, const std::string & urdf = "")
+    const std::vector<rclcpp::Parameter> & parameters = {},
+    const std::string & urdf = ros2_control_test_assets::minimal_robot_urdf)
   {
     traj_controller_ = std::make_shared<TestableMultiTimeTrajectoryController>();
 
@@ -311,7 +331,8 @@ public:
     const std::vector<double> & initial_pos_axes = INITIAL_POS_AXES,
     const std::vector<double> & initial_vel_axes = INITIAL_VEL_AXES,
     const std::vector<double> & initial_acc_axes = INITIAL_ACC_AXES,
-    const std::vector<double> & initial_eff_axes = INITIAL_EFF_AXES, const std::string & urdf = "")
+    const std::vector<double> & initial_eff_axes = INITIAL_EFF_AXES,
+    const std::string & urdf = ros2_control_test_assets::minimal_robot_urdf)
   {
     auto has_nonzero_vel_param =
       std::find_if(
@@ -944,6 +965,8 @@ public:
     command_interface_types_ = std::get<0>(GetParam());
     state_interface_types_ = std::get<1>(GetParam());
   }
+
+  virtual void TearDown() { TrajectoryControllerTest::TearDown(); }
 
   static void TearDownTestCase() { TrajectoryControllerTest::TearDownTestCase(); }
 };
