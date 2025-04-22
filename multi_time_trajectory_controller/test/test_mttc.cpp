@@ -1991,6 +1991,7 @@ TEST_F(TrajectoryControllerTest, incorrect_initialization_using_interface_parame
 TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 {
   axis_names_ = {"x", "y", "z", "roll", "pitch", "yaw"};
+  axis_is_angular_ = {false, false, false, true, true, true};
   command_axis_names_ = {"command_x",    "command_y",     "command_z",
                          "command_roll", "command_pitch", "command_yaw"};
   command_interface_types_ = {"position", "velocity"};
@@ -2273,6 +2274,7 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting)
 {
   axis_names_ = {"x", "y", "z", "roll", "pitch", "yaw"};
+  axis_is_angular_ = {false, false, false, true, true, true};
   command_axis_names_ = {"command_x",    "command_y",     "command_z",
                          "command_roll", "command_pitch", "command_yaw"};
   command_interface_types_ = {"position", "velocity"};
@@ -2423,6 +2425,7 @@ TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting
 TEST_F(TrajectoryControllerTest, test_joint_limiter_active_and_joint_limiting)
 {
   axis_names_ = {"x", "y", "z", "roll", "pitch", "yaw"};
+  axis_is_angular_ = {false, false, false, true, true, true};
   command_axis_names_ = {"command_x",    "command_y",     "command_z",
                          "command_roll", "command_pitch", "command_yaw"};
   command_interface_types_ = {"position", "velocity"};

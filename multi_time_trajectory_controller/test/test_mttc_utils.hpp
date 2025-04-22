@@ -189,6 +189,7 @@ public:
     controller_name_ = "test_multi_axis_controller";
 
     axis_names_ = {"axis1", "axis2", "axis3"};
+    axis_is_angular_ = {false, false, false};
     command_axis_names_ = {
       "following_controller/axis1", "following_controller/axis2", "following_controller/axis3"};
     axis_pos_.resize(axis_names_.size(), 0.0);
@@ -275,6 +276,7 @@ public:
     auto node_options = rclcpp::NodeOptions();
     std::vector<rclcpp::Parameter> parameter_overrides;
     parameter_overrides.push_back(rclcpp::Parameter("axes", axis_names_));
+    parameter_overrides.push_back(rclcpp::Parameter("axes_is_angular", axis_is_angular_));
     parameter_overrides.push_back(
       rclcpp::Parameter("command_interfaces", command_interface_types_));
     parameter_overrides.push_back(rclcpp::Parameter("state_interfaces", state_interface_types_));
@@ -845,6 +847,7 @@ public:
   std::string controller_name_;
 
   std::vector<std::string> axis_names_;
+  std::vector<bool> axis_is_angular_;
   std::vector<std::string> command_axis_names_;
   std::vector<std::string> command_interface_types_;
   std::vector<std::string> state_interface_types_;
