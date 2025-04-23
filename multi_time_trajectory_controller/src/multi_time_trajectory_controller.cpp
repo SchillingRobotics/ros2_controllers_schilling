@@ -66,7 +66,8 @@ controller_interface::CallbackReturn MultiTimeTrajectoryController::on_init()
     params_ = param_listener_->get_params();
 
     joint_limiter_loader_ = std::make_shared<pluginlib::ClassLoader<JointLimiter>>(
-      "joint_limits", "joint_limits::JointLimiterInterface<joint_limits::JointLimits>");
+      "joint_limits",
+      "joint_limits::JointLimiterInterface<trajectory_msgs::msg::JointTrajectoryPoint>");
     RCLCPP_DEBUG(get_node()->get_logger(), "Available joint limiter classes:");
     for (const auto & available_class : joint_limiter_loader_->getDeclaredClasses())
     {

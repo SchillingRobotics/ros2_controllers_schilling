@@ -21,7 +21,6 @@
 
 #include <chrono>
 #include <memory>
-#include <ros2_control_test_assets/ros2_control_test_assets/descriptions.hpp>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -31,6 +30,7 @@
 
 #include <rclcpp/executor.hpp>
 #include <rclcpp/future_return_code.hpp>
+#include <ros2_control_test_assets/ros2_control_test_assets/descriptions.hpp>
 #include "control_msgs/msg/axis_trajectory_point.hpp"
 #include "control_msgs/msg/multi_axis_trajectory.hpp"
 #include "control_msgs/msg/multi_time_trajectory_controller_state.hpp"
@@ -595,7 +595,7 @@ public:
   }
 
   /**
-   * @brief a wrapper for update() method of JTC, running synchronously with the clock
+   * @brief a wrapper for update() method of MAC, running synchronously with the clock
    * @param wait_time - the time span for updating the controller
    * @param update_rate - the rate at which the controller is updated
    *
@@ -621,7 +621,7 @@ public:
   }
 
   /**
-   * @brief a wrapper for update() method of JTC, running asynchronously from the clock
+   * @brief a wrapper for update() method of MAC, running asynchronously from the clock
    * @return the time at which the update finished
    * @param wait_time - the time span for updating the controller
    * @param start_time - the time at which the update should start

@@ -15,18 +15,16 @@
 #include <gtest/gtest.h>
 #include <rcl/time.h>
 #include <cmath>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Geometry>
 
 #include <chrono>
 #include <cstddef>
 #include <limits>
-#include <rclcpp/parameter_value.hpp>
 #include <thread>
 #include <vector>
 
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter.hpp>
+#include <rclcpp/parameter_value.hpp>
 #include "control_msgs/msg/axis_trajectory_point.hpp"
 #include "control_msgs/msg/multi_axis_trajectory.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
@@ -2265,7 +2263,7 @@ TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting
     {"use_feedback", true},
     {"allow_integration_in_goal_trajectories", true},
     {"hold_last_velocity", true},
-    {"joint_limiter_type", "joint_limits/JointInterfacesSaturationLimiter"},
+    {"joint_limiter_type", "joint_limits/JointTrajectoryPointSaturationLimiter"},
     // joint limits for x
     {"joint_limits.x.has_position_limits", false},
     {"joint_limits.x.has_velocity_limits", true},
@@ -2416,7 +2414,7 @@ TEST_F(TrajectoryControllerTest, test_joint_limiter_active_and_joint_limiting)
     {"use_feedback", true},
     {"allow_integration_in_goal_trajectories", true},
     {"hold_last_velocity", true},
-    {"joint_limiter_type", "joint_limits/JointInterfacesSaturationLimiter"},
+    {"joint_limiter_type", "joint_limits/JointTrajectoryPointSaturationLimiter"},
     // joint limits for x
     {"joint_limits.x.has_position_limits", false},
     {"joint_limits.x.has_velocity_limits", true},
