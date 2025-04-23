@@ -186,7 +186,7 @@ class TrajectoryControllerTest : public ::testing::Test
 public:
   static void SetUpTestCase() { rclcpp::init(0, nullptr); }
 
-  virtual void SetUp()
+  void SetUp() override
   {
     controller_name_ = "test_multi_axis_controller";
 
@@ -664,7 +664,7 @@ public:
         executor->spin_some();
       }
     }
-    return end_time;
+    return time_counter;
   }
 
   rclcpp::Time waitAndCompareState(
@@ -894,17 +894,18 @@ public:
     bool closed_loop_position_enabled;
   };
 
-  bool send_reset_request(
-    std::shared_ptr<control_msgs::srv::ResetDofs::Request> request, rclcpp::Executor & executor)
+  rclcpp::Time send_reset_request(
+    rclcpp::Time start_time, std::shared_ptr<control_msgs::srv::ResetDofs::Request> request,
+    rclcpp::Executor & executor)
   {
     if (!traj_gen_available_)
     {
       throw std::runtime_error("Reset dofs service not yet available.");
     }
     auto result = traj_gen_reset_dofs_client_->async_send_request(request);
-    auto retval = executor.spin_until_future_complete(result, std::chrono::seconds(1));
+    executor.spin_until_future_complete(result, std::chrono::seconds(1));
 
-    return retval == rclcpp::FutureReturnCode::SUCCESS;
+    return updateControllerAsync(rclcpp::Duration::from_seconds(0.2), start_time);
   }
   void create_reset_dofs_service_client()
   {

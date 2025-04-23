@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include <rclcpp/duration.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter.hpp>
 #include <rclcpp/parameter_value.hpp>
@@ -2028,7 +2029,7 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
   traj_controller_->wait_for_trajectory(executor);
 
   // now test that we haven't moved
-  waitAndCompareState(
+  auto end_time = waitAndCompareState(
     expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
     rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
   positions.clear();
@@ -2074,9 +2075,8 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
   publish(dur, positions, rclcpp::Time(0, 0, RCL_STEADY_TIME), {}, velocities);
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1, end_time, true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2104,9 +2104,8 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1, end_time, true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2131,7 +2130,9 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
   request->positions = {final_pos[0], final_pos[1]};
   request->velocities = {0, 0};
   request->accelerations = {0, 0};
-  send_reset_request(request, executor);
+  end_time = send_reset_request(end_time, request, executor);
+
+  traj_controller_->wait_for_trajectory(executor);
 
   // now axis_multiplexer sends all nans for x and y
   positions = {freq_Hz, final_pos};
@@ -2157,9 +2158,9 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1, end_time,
+    true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2186,9 +2187,9 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1, end_time,
+    true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2224,18 +2225,12 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1, end_time, true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
   expected_desired.clear();
-
-  // If I disable closed-loop control for X-Y, and try to move X-Y in
-  // open-loop with joystick again on MAC, it doesn't move. If I move the joystick in a different
-  // axes e.g. heading, it works fine. I have to confirm again but Z doesn't work anymore though
-  // either on MAC.
 }
 
 TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting)
