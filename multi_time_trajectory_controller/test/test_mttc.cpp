@@ -690,7 +690,7 @@ TEST_P(TrajectoryControllerTestParameterized, position_error_angle_wraparound)
   rclcpp::executors::MultiThreadedExecutor executor;
   constexpr double k_p = 10.0;
   std::vector<rclcpp::Parameter> params = {};
-  // params.emplace_back("axes_is_angular", std::vector<bool>{true, true, true});
+  params.emplace_back("axes_is_angular", std::vector<bool>{true, true, true});
   SetUpAndActivateTrajectoryController(
     executor, params, true, k_p, 0.0, INITIAL_POS_AXES, INITIAL_VEL_AXES, INITIAL_ACC_AXES,
     INITIAL_EFF_AXES, test_mttc::urdf_rrrbot_continuous);
