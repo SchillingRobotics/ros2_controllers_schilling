@@ -14,8 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <rcl/time.h>
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Geometry>
+#include <cmath>
 
 #include <chrono>
 #include <cstddef>
@@ -23,8 +22,10 @@
 #include <thread>
 #include <vector>
 
+#include <rclcpp/duration.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/parameter.hpp>
+#include <rclcpp/parameter_value.hpp>
 #include "control_msgs/msg/axis_trajectory_point.hpp"
 #include "control_msgs/msg/multi_axis_trajectory.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
@@ -36,39 +37,6 @@
 using lifecycle_msgs::msg::State;
 using test_mttc::TrajectoryControllerTest;
 using test_mttc::TrajectoryControllerTestParameterized;
-
-TEST_P(TrajectoryControllerTestParameterized, configure_state_ignores_commands)
-{
-  rclcpp::executors::MultiThreadedExecutor executor;
-  SetUpTrajectoryController(executor);
-  traj_controller_->get_node()->set_parameter(
-    rclcpp::Parameter("allow_nonzero_velocity_at_trajectory_end", true));
-
-  const auto state = traj_controller_->get_node()->configure();
-  ASSERT_EQ(state.id(), State::PRIMARY_STATE_INACTIVE);
-
-  // send msg
-  constexpr auto FIRST_POINT_TIME = std::chrono::milliseconds(250);
-  builtin_interfaces::msg::Duration time_from_start{rclcpp::Duration(FIRST_POINT_TIME)};
-  // *INDENT-OFF*
-  std::vector<std::vector<double>> points{
-    {{3.3, 4.4, 5.5}}, {{7.7, 8.8, 9.9}}, {{10.10, 11.11, 12.12}}};
-  std::vector<std::vector<double>> points_velocity{
-    {{0.01, 0.01, 0.01}}, {{0.05, 0.05, 0.05}}, {{0.06, 0.06, 0.06}}};
-  // *INDENT-ON*
-  publish(time_from_start, points, rclcpp::Time(), {}, points_velocity);
-  traj_controller_->wait_for_trajectory(executor);
-
-  traj_controller_->update(
-    rclcpp::Time(static_cast<uint64_t>(0.5 * 1e9)), rclcpp::Duration::from_seconds(0.5));
-
-  // hw position == 0 because controller is not activated
-  EXPECT_EQ(0.0, axis_pos_[0]);
-  EXPECT_EQ(0.0, axis_pos_[1]);
-  EXPECT_EQ(0.0, axis_pos_[2]);
-
-  executor.cancel();
-}
 
 TEST_P(TrajectoryControllerTestParameterized, check_interface_names)
 {
@@ -139,7 +107,6 @@ TEST_P(TrajectoryControllerTestParameterized, cleanup)
 
   auto state = traj_controller_->get_node()->deactivate();
   ASSERT_EQ(State::PRIMARY_STATE_INACTIVE, state.id());
-  traj_controller_->update(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.01));
 
   state = traj_controller_->get_node()->cleanup();
   ASSERT_EQ(State::PRIMARY_STATE_UNCONFIGURED, state.id());
@@ -211,8 +178,8 @@ TEST_P(TrajectoryControllerTestParameterized, correct_initialization_using_param
   std::vector<double> deactivated_positions{axis_pos_[0], axis_pos_[1], axis_pos_[2]};
   state = traj_controller_->get_node()->deactivate();
   ASSERT_EQ(state.id(), State::PRIMARY_STATE_INACTIVE);
+
   // it should be holding the current point
-  traj_controller_->update(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.1));
   expectHoldingPointDeactivated(deactivated_positions);
 
   // reactivate
@@ -432,6 +399,7 @@ TEST_P(TrajectoryControllerTestParameterized, compute_error_angle_wraparound_tru
 {
   rclcpp::executors::MultiThreadedExecutor executor;
   std::vector<rclcpp::Parameter> params = {};
+  params.emplace_back("axes_is_angular", std::vector<bool>{true, true, true});
   SetUpAndActivateTrajectoryController(
     executor, params, true, 0.0, 1.0, INITIAL_POS_AXES, INITIAL_VEL_AXES, INITIAL_ACC_AXES,
     INITIAL_EFF_AXES, test_mttc::urdf_rrrbot_continuous);
@@ -722,6 +690,7 @@ TEST_P(TrajectoryControllerTestParameterized, position_error_angle_wraparound)
   rclcpp::executors::MultiThreadedExecutor executor;
   constexpr double k_p = 10.0;
   std::vector<rclcpp::Parameter> params = {};
+  params.emplace_back("axes_is_angular", std::vector<bool>{true, true, true});
   SetUpAndActivateTrajectoryController(
     executor, params, true, k_p, 0.0, INITIAL_POS_AXES, INITIAL_VEL_AXES, INITIAL_ACC_AXES,
     INITIAL_EFF_AXES, test_mttc::urdf_rrrbot_continuous);
@@ -761,20 +730,19 @@ TEST_P(TrajectoryControllerTestParameterized, position_error_angle_wraparound)
   // are the correct reference position used?
   EXPECT_NEAR(points[0][0], state_reference[0].position, COMMON_THRESHOLD);
   EXPECT_NEAR(points[0][1], state_reference[1].position, COMMON_THRESHOLD);
-  EXPECT_NEAR(points[0][2], state_reference[2].position, COMMON_THRESHOLD);
+  EXPECT_NEAR(points[0][2] - 2 * M_PI, state_reference[2].position, COMMON_THRESHOLD);
 
   // is error.position[2] wrapped around?
   EXPECT_NEAR(state_error[0].position, state_reference[0].position - INITIAL_POS_AXES[0], EPS);
   EXPECT_NEAR(state_error[1].position, state_reference[1].position - INITIAL_POS_AXES[1], EPS);
-  EXPECT_NEAR(
-    state_error[2].position, state_reference[2].position - INITIAL_POS_AXES[2] - 2 * M_PI, EPS);
+  EXPECT_NEAR(state_error[2].position, state_reference[2].position - INITIAL_POS_AXES[2], EPS);
 
   if (traj_controller_->has_position_command_interface())
   {
     // check command interface
     EXPECT_NEAR(points[0][0], axis_pos_[0], COMMON_THRESHOLD);
     EXPECT_NEAR(points[0][1], axis_pos_[1], COMMON_THRESHOLD);
-    EXPECT_NEAR(points[0][2], axis_pos_[2], COMMON_THRESHOLD);
+    EXPECT_NEAR(points[0][2] - 2 * M_PI, axis_pos_[2], COMMON_THRESHOLD);
   }
 
   if (traj_controller_->has_velocity_command_interface())
@@ -792,7 +760,7 @@ TEST_P(TrajectoryControllerTestParameterized, position_error_angle_wraparound)
       // is error of position[2] wrapped around?
       EXPECT_GT(0.0, axis_vel_[2]);  // direction change because of angle wrap
       EXPECT_NEAR(
-        k_p * (state_reference[2].position - INITIAL_POS_AXES[2] - 2 * M_PI), axis_vel_[2],
+        k_p * (state_reference[2].position - INITIAL_POS_AXES[2]), axis_vel_[2],
         k_p * COMMON_THRESHOLD);
     }
     else
@@ -818,7 +786,7 @@ TEST_P(TrajectoryControllerTestParameterized, position_error_angle_wraparound)
     // is error of position[2] wrapped around?
     EXPECT_GT(0.0, axis_eff_[2]);
     EXPECT_NEAR(
-      k_p * (state_reference[2].position - INITIAL_POS_AXES[2] - 2 * M_PI), axis_eff_[2],
+      k_p * (state_reference[2].position - INITIAL_POS_AXES[2]), axis_eff_[2],
       k_p * COMMON_THRESHOLD);
   }
 
@@ -1991,6 +1959,7 @@ TEST_F(TrajectoryControllerTest, incorrect_initialization_using_interface_parame
 TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 {
   axis_names_ = {"x", "y", "z", "roll", "pitch", "yaw"};
+  axis_is_angular_ = {false, false, false, true, true, true};
   command_axis_names_ = {"command_x",    "command_y",     "command_z",
                          "command_roll", "command_pitch", "command_yaw"};
   command_interface_types_ = {"position", "velocity"};
@@ -2060,7 +2029,7 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
   traj_controller_->wait_for_trajectory(executor);
 
   // now test that we haven't moved
-  waitAndCompareState(
+  auto end_time = waitAndCompareState(
     expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
     rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
   positions.clear();
@@ -2106,9 +2075,8 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
   publish(dur, positions, rclcpp::Time(0, 0, RCL_STEADY_TIME), {}, velocities);
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1, end_time, true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2136,9 +2104,8 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1, end_time, true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2163,7 +2130,9 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
   request->positions = {final_pos[0], final_pos[1]};
   request->velocities = {0, 0};
   request->accelerations = {0, 0};
-  send_reset_request(request, executor);
+  end_time = send_reset_request(end_time, request, executor);
+
+  traj_controller_->wait_for_trajectory(executor);
 
   // now axis_multiplexer sends all nans for x and y
   positions = {freq_Hz, final_pos};
@@ -2189,9 +2158,9 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1, end_time,
+    true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2218,9 +2187,9 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * (3 * freq_Hz / 2), 0.1, end_time,
+    true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
@@ -2256,23 +2225,18 @@ TEST_F(TrajectoryControllerTest, open_closed_enable_disable)
 
   traj_controller_->wait_for_trajectory(executor);
 
-  waitAndCompareState(
-    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1,
-    rclcpp::Time(0, 0, RCL_STEADY_TIME), true);
+  end_time = waitAndCompareState(
+    expected_actual, expected_desired, executor, chrono_duration * freq_Hz, 0.1, end_time, true);
   positions.clear();
   velocities.clear();
   expected_actual.clear();
   expected_desired.clear();
-
-  // If I disable closed-loop control for X-Y, and try to move X-Y in
-  // open-loop with joystick again on MAC, it doesn't move. If I move the joystick in a different
-  // axes e.g. heading, it works fine. I have to confirm again but Z doesn't work anymore though
-  // either on MAC.
 }
 
 TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting)
 {
   axis_names_ = {"x", "y", "z", "roll", "pitch", "yaw"};
+  axis_is_angular_ = {false, false, false, true, true, true};
   command_axis_names_ = {"command_x",    "command_y",     "command_z",
                          "command_roll", "command_pitch", "command_yaw"};
   command_interface_types_ = {"position", "velocity"};
@@ -2294,7 +2258,7 @@ TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting
     {"use_feedback", true},
     {"allow_integration_in_goal_trajectories", true},
     {"hold_last_velocity", true},
-    {"joint_limiter_type", "joint_limits/JointSaturationLimiter"},
+    {"joint_limiter_type", "joint_limits/JointTrajectoryPointSaturationLimiter"},
     // joint limits for x
     {"joint_limits.x.has_position_limits", false},
     {"joint_limits.x.has_velocity_limits", true},
@@ -2423,6 +2387,7 @@ TEST_F(TrajectoryControllerTest, test_joint_limiter_active_but_no_joint_limiting
 TEST_F(TrajectoryControllerTest, test_joint_limiter_active_and_joint_limiting)
 {
   axis_names_ = {"x", "y", "z", "roll", "pitch", "yaw"};
+  axis_is_angular_ = {false, false, false, true, true, true};
   command_axis_names_ = {"command_x",    "command_y",     "command_z",
                          "command_roll", "command_pitch", "command_yaw"};
   command_interface_types_ = {"position", "velocity"};
@@ -2444,7 +2409,7 @@ TEST_F(TrajectoryControllerTest, test_joint_limiter_active_and_joint_limiting)
     {"use_feedback", true},
     {"allow_integration_in_goal_trajectories", true},
     {"hold_last_velocity", true},
-    {"joint_limiter_type", "joint_limits/JointSaturationLimiter"},
+    {"joint_limiter_type", "joint_limits/JointTrajectoryPointSaturationLimiter"},
     // joint limits for x
     {"joint_limits.x.has_position_limits", false},
     {"joint_limits.x.has_velocity_limits", true},

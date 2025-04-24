@@ -30,10 +30,12 @@
 
 #include <rclcpp/executor.hpp>
 #include <rclcpp/future_return_code.hpp>
+#include <ros2_control_test_assets/ros2_control_test_assets/descriptions.hpp>
 #include "control_msgs/msg/axis_trajectory_point.hpp"
 #include "control_msgs/msg/multi_axis_trajectory.hpp"
 #include "control_msgs/msg/multi_time_trajectory_controller_state.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
 #include "multi_time_trajectory_controller/multi_time_trajectory_controller.hpp"
 
 namespace
@@ -184,11 +186,12 @@ class TrajectoryControllerTest : public ::testing::Test
 public:
   static void SetUpTestCase() { rclcpp::init(0, nullptr); }
 
-  virtual void SetUp()
+  void SetUp() override
   {
     controller_name_ = "test_multi_axis_controller";
 
     axis_names_ = {"axis1", "axis2", "axis3"};
+    axis_is_angular_ = {false, false, false};
     command_axis_names_ = {
       "following_controller/axis1", "following_controller/axis2", "following_controller/axis3"};
     axis_pos_.resize(axis_names_.size(), 0.0);
@@ -218,16 +221,33 @@ public:
     create_reset_dofs_service_client();
   }
 
-  virtual void TearDown()
+  void DeactivateTrajectoryController()
   {
+    if (traj_controller_)
+    {
+      if (
+        traj_controller_->get_lifecycle_state().id() ==
+        lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE)
+      {
+        EXPECT_EQ(
+          traj_controller_->get_node()->deactivate().id(),
+          lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE);
+      }
+    }
+  }
+
+  void TearDown() override
+  {
+    DeactivateTrajectoryController();
     shutdown_ = true;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    traj_controller_.reset();
     traj_gen_sync_thread_.join();
   }
 
   void SetUpTrajectoryController(
     rclcpp::Executor & executor, const std::vector<rclcpp::Parameter> & parameters = {},
-    const std::string & urdf = "")
+    const std::string & urdf = ros2_control_test_assets::minimal_robot_urdf)
   {
     auto has_nonzero_vel_param =
       std::find_if(
@@ -268,13 +288,15 @@ public:
   }
 
   controller_interface::return_type SetUpTrajectoryControllerLocal(
-    const std::vector<rclcpp::Parameter> & parameters = {}, const std::string & urdf = "")
+    const std::vector<rclcpp::Parameter> & parameters = {},
+    const std::string & urdf = ros2_control_test_assets::minimal_robot_urdf)
   {
     traj_controller_ = std::make_shared<TestableMultiTimeTrajectoryController>();
 
     auto node_options = rclcpp::NodeOptions();
     std::vector<rclcpp::Parameter> parameter_overrides;
     parameter_overrides.push_back(rclcpp::Parameter("axes", axis_names_));
+    parameter_overrides.push_back(rclcpp::Parameter("axes_is_angular", axis_is_angular_));
     parameter_overrides.push_back(
       rclcpp::Parameter("command_interfaces", command_interface_types_));
     parameter_overrides.push_back(rclcpp::Parameter("state_interfaces", state_interface_types_));
@@ -309,7 +331,8 @@ public:
     const std::vector<double> & initial_pos_axes = INITIAL_POS_AXES,
     const std::vector<double> & initial_vel_axes = INITIAL_VEL_AXES,
     const std::vector<double> & initial_acc_axes = INITIAL_ACC_AXES,
-    const std::vector<double> & initial_eff_axes = INITIAL_EFF_AXES, const std::string & urdf = "")
+    const std::vector<double> & initial_eff_axes = INITIAL_EFF_AXES,
+    const std::string & urdf = ros2_control_test_assets::minimal_robot_urdf)
   {
     auto has_nonzero_vel_param =
       std::find_if(
@@ -572,7 +595,7 @@ public:
   }
 
   /**
-   * @brief a wrapper for update() method of JTC, running synchronously with the clock
+   * @brief a wrapper for update() method of MAC, running synchronously with the clock
    * @param wait_time - the time span for updating the controller
    * @param update_rate - the rate at which the controller is updated
    *
@@ -598,7 +621,7 @@ public:
   }
 
   /**
-   * @brief a wrapper for update() method of JTC, running asynchronously from the clock
+   * @brief a wrapper for update() method of MAC, running asynchronously from the clock
    * @return the time at which the update finished
    * @param wait_time - the time span for updating the controller
    * @param start_time - the time at which the update should start
@@ -641,7 +664,7 @@ public:
         executor->spin_some();
       }
     }
-    return end_time;
+    return time_counter;
   }
 
   rclcpp::Time waitAndCompareState(
@@ -845,6 +868,7 @@ public:
   std::string controller_name_;
 
   std::vector<std::string> axis_names_;
+  std::vector<bool> axis_is_angular_;
   std::vector<std::string> command_axis_names_;
   std::vector<std::string> command_interface_types_;
   std::vector<std::string> state_interface_types_;
@@ -870,17 +894,18 @@ public:
     bool closed_loop_position_enabled;
   };
 
-  bool send_reset_request(
-    std::shared_ptr<control_msgs::srv::ResetDofs::Request> request, rclcpp::Executor & executor)
+  rclcpp::Time send_reset_request(
+    rclcpp::Time start_time, std::shared_ptr<control_msgs::srv::ResetDofs::Request> request,
+    rclcpp::Executor & executor)
   {
     if (!traj_gen_available_)
     {
       throw std::runtime_error("Reset dofs service not yet available.");
     }
     auto result = traj_gen_reset_dofs_client_->async_send_request(request);
-    auto retval = executor.spin_until_future_complete(result, std::chrono::seconds(1));
+    executor.spin_until_future_complete(result, std::chrono::seconds(1));
 
-    return retval == rclcpp::FutureReturnCode::SUCCESS;
+    return updateControllerAsync(rclcpp::Duration::from_seconds(0.2), start_time);
   }
   void create_reset_dofs_service_client()
   {
@@ -941,6 +966,8 @@ public:
     command_interface_types_ = std::get<0>(GetParam());
     state_interface_types_ = std::get<1>(GetParam());
   }
+
+  virtual void TearDown() { TrajectoryControllerTest::TearDown(); }
 
   static void TearDownTestCase() { TrajectoryControllerTest::TearDownTestCase(); }
 };
